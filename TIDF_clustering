@@ -1,0 +1,368 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Clustering the companies based on description"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## import libraries"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 59,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T23:55:39.025315Z",
+     "start_time": "2019-10-07T23:55:39.014246Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "from sklearn.feature_extraction.text import CountVectorizer\n",
+    "from sklearn.feature_extraction.text import TfidfVectorizer\n",
+    "import re\n",
+    "from nltk.stem.porter import PorterStemmer\n",
+    "from sklearn.feature_extraction.text import CountVectorizer\n",
+    "from nltk.stem.porter import PorterStemmer\n",
+    "porter_stemmer = PorterStemmer()\n",
+    "from sklearn.cluster import KMeans\n",
+    "from sklearn import metrics\n",
+    "from scipy.spatial.distance import cdist\n",
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Load data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 56,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T23:54:19.373370Z",
+     "start_time": "2019-10-07T23:54:17.779151Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "loc = \"/Users/aishwaryaramasethu/Desktop/ISBfiles/\"\n",
+    "ind_des = pd.ExcelFile(loc+'company_desc.xlsx')\n",
+    "ind_des.sheet_names\n",
+    "df_desc = ind_des.parse('Sheet1')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Treating the data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 57,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T23:54:24.380394Z",
+     "start_time": "2019-10-07T23:54:23.989735Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "#USE SHORT DESCRIPTION WHENEVER LONG DESCRIPTION IS NULL\n",
+    "df_desc.company_description.fillna(df_desc.company_short_description, inplace=True)\n",
+    "\n",
+    "#REMOVE WEBSITES / HYPERLINKS FROM DESCRIPTION\n",
+    "df_desc['company_description'] = df_desc['company_description'].str.replace('http\\S+|www.\\S+', '', case=False)\n",
+    "\n",
+    "#CONVERT THE COMPANY DESCRIPTION INTO LIST\n",
+    "desc_list = df_desc['company_description'].tolist()\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## TF - IDF "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Data prep for TF IDF"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T23:34:50.525297Z",
+     "start_time": "2019-10-07T23:34:43.793761Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "#FUNCTION TOKENIZE AND STEMMING WORDS\n",
+    "porter_stemmer = PorterStemmer()\n",
+    "\n",
+    "def stemming_tokenizer(str_input):\n",
+    "    words = re.sub(r\"[^A-Za-z]\", \" \", str_input).lower().split() #TOKENIZE\n",
+    "    words = [porter_stemmer.stem(word) for word in words] #STEM\n",
+    "    return words\n",
+    "\n",
+    "#REMOVING STOP WORDS, TOKENIZE, STEM\n",
+    "count_vectorizer = CountVectorizer(stop_words='english', tokenizer=stemming_tokenizer)\n",
+    "desc_data = count_vectorizer.fit_transform(desc_list)\n",
+    "\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### initialize a vectorizer"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 79,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T00:28:47.707831Z",
+     "start_time": "2019-10-08T00:28:07.915507Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/aishwaryaramasethu/anaconda3/lib/python3.7/site-packages/sklearn/feature_extraction/text.py:300: UserWarning: Your stop_words may be inconsistent with your preprocessing. Tokenizing the stop words generated tokens ['abov', 'afterward', 'alon', 'alreadi', 'alway', 'ani', 'anoth', 'anyon', 'anyth', 'anywher', 'becam', 'becaus', 'becom', 'befor', 'besid', 'cri', 'describ', 'dure', 'els', 'elsewher', 'empti', 'everi', 'everyon', 'everyth', 'everywher', 'fifti', 'formerli', 'forti', 'ha', 'henc', 'hereaft', 'herebi', 'hi', 'howev', 'hundr', 'inde', 'latterli', 'mani', 'meanwhil', 'moreov', 'mostli', 'nobodi', 'noon', 'noth', 'nowher', 'onc', 'onli', 'otherwis', 'ourselv', 'perhap', 'pleas', 'seriou', 'sever', 'sinc', 'sincer', 'sixti', 'someon', 'someth', 'sometim', 'somewher', 'themselv', 'thenc', 'thereaft', 'therebi', 'therefor', 'thi', 'thu', 'togeth', 'twelv', 'twenti', 'veri', 'wa', 'whatev', 'whenc', 'whenev', 'wherea', 'whereaft', 'wherebi', 'wherev', 'whi', 'yourselv'] not in stop_words.\n",
+      "  'stop_words.' % sorted(inconsistent))\n"
+     ]
+    }
+   ],
+   "source": [
+    "vectorizer = TfidfVectorizer(use_idf=True, tokenizer=stemming_tokenizer, stop_words='english')\n",
+    "X = vectorizer.fit_transform(desc_list)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## K means cluster"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 62,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T00:03:46.588055Z",
+     "start_time": "2019-10-07T23:59:12.052613Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "KMeans(algorithm='auto', copy_x=True, init='k-means++', max_iter=300,\n",
+       "       n_clusters=2, n_init=10, n_jobs=None, precompute_distances='auto',\n",
+       "       random_state=None, tol=0.0001, verbose=0)"
+      ]
+     },
+     "execution_count": 62,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "number_of_clusters = 2\n",
+    "km = KMeans(n_clusters=number_of_clusters)\n",
+    "km.fit(X)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 69,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T00:11:53.061061Z",
+     "start_time": "2019-10-08T00:11:53.038251Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "results = pd.DataFrame()\n",
+    "results['desc_list'] = desc_list\n",
+    "results['category'] = km.labels_"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Elbow method for k means clustering"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T00:41:01.652341Z",
+     "start_time": "2019-10-08T00:34:05.860713Z"
+    }
+   },
+   "source": [
+    "\n",
+    "\n",
+    "Sum_of_squared_distances = []\n",
+    "K = range(8,10)\n",
+    "for k in K:\n",
+    "    km = KMeans(n_clusters=k)\n",
+    "    km = km.fit(X)\n",
+    "    Sum_of_squared_distances.append(km.inertia_)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 100,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T02:16:49.827884Z",
+     "start_time": "2019-10-08T02:16:49.795657Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "results = pd.DataFrame()\n",
+    "results['desc_list'] = desc_list\n",
+    "results['category'] = km.labels_"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 102,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T02:23:55.011179Z",
+     "start_time": "2019-10-08T02:23:54.968568Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "results_cluster = pd.merge(results, df_desc,  how='left', left_on = [\"desc_list\"], right_on = [\"company_description\"])\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 105,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T02:27:33.716749Z",
+     "start_time": "2019-10-08T02:27:33.622726Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Top terms per cluster:\n",
+      "Cluster 0: energi technolog product manufactur develop\n",
+      "Cluster 1: develop diseas therapeut compani treatment\n",
+      "Cluster 2: secur cloud network storag enterpris\n",
+      "Cluster 3: game play social mobil player\n",
+      "Cluster 4: servic manag provid solut busi\n",
+      "Cluster 5: health care patient healthcar provid\n",
+      "Cluster 6: data analyt custom platform market\n",
+      "Cluster 7: video media content advertis social\n",
+      "Cluster 8: s compani onlin help platform\n",
+      "Cluster 9: mobil app user platform applic\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(\"Top terms per cluster:\")\n",
+    "order_centroids = km.cluster_centers_.argsort()[:, ::-1]\n",
+    "terms = vectorizer.get_feature_names()\n",
+    "for i in range(k):\n",
+    "    top_ten_words = [terms[ind] for ind in order_centroids[i, :5]]\n",
+    "    print(\"Cluster {}: {}\".format(i, ' '.join(top_ten_words)))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 108,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T02:34:53.398376Z",
+     "start_time": "2019-10-08T02:34:52.740793Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "results_cluster.to_csv(\"task3_2_results.csv\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.3"
+  },
+  "toc": {
+   "base_numbering": 1,
+   "nav_menu": {},
+   "number_sections": true,
+   "sideBar": true,
+   "skip_h1_title": false,
+   "title_cell": "Table of Contents",
+   "title_sidebar": "Contents",
+   "toc_cell": false,
+   "toc_position": {},
+   "toc_section_display": true,
+   "toc_window_display": true
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}

@@ -1,0 +1,318 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 1 NAME MATCHING"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1.1 Import Libraries"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 69,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T22:32:18.193799Z",
+     "start_time": "2019-10-07T22:32:18.187800Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "import xlrd\n",
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import dask.dataframe as dd\n",
+    "import multiprocessing\n",
+    "import time\n",
+    "import datetime"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1.2 Loading data from excel to data frames"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 72,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T22:39:27.210951Z",
+     "start_time": "2019-10-07T22:39:26.482326Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "def read_files(file_loc):\n",
+    "    df = pd.ExcelFile(file_loc)\n",
+    "    df = df.parse('Sheet1')\n",
+    "    return df\n",
+    "\n",
+    "\n",
+    "df_list1 = read_files(\"/Users/aishwaryaramasethu/Desktop/ISBfiles/list1.xlsx\")\n",
+    "df_list2 = read_files(\"/Users/aishwaryaramasethu/Desktop/ISBfiles/list2.xlsx\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1.3 Data manipulation"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 77,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T22:42:41.205537Z",
+     "start_time": "2019-10-07T22:42:41.127865Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "# DEDUPING THE DATA\n",
+    "df_list2 = df_list2[\"conm\"].drop_duplicates()\n",
+    "df_list2 = df_list2.to_frame()\n",
+    "df_list1 = df_list1[\"assignee\"].drop_duplicates()\n",
+    "df_list1 = df_list1.to_frame()\n",
+    "\n",
+    "#REMOVING SPECIAL CHAR, SPACES AND CHANGING TO LOWER CASE (FOR FUZZY WUZZY MAINLY)\n",
+    "df_list2['uni_comp_name'] = df_list2['conm'].astype('str')\n",
+    "df_list2['uni_comp_name'] = df_list2['uni_comp_name'].str.lower()\n",
+    "df_list2['uni_comp_name'] = df_list2['uni_comp_name'].str.replace(r\"\\(.*\\)&%/,\",\"\")\n",
+    "df_list2['uni_comp_name_sp'] = df_list2['uni_comp_name'].str.replace(\" \",\"\")\n",
+    "\n",
+    "df_list1['names_all'] = df_list1['assignee'].str.lower()\n",
+    "df_list1['names_all'] = df_list1['names_all'].str.replace(r\"\\(.*\\)&%/,\",\"\")\n",
+    "df_list1['names_all_sp'] = df_list1['names_all'].str.replace(\" \",\"\")\n",
+    "\n",
+    "\n",
+    "#EXTRACTING THE FIRST LETTER FOR JOINS\n",
+    "df_list1['first'] = df_list1['names_all'].astype(str).str[0]\n",
+    "df_list2['first'] = df_list2['uni_comp_name'].astype(str).str[0]\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1.4 master list - joined on 1st letter"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 83,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T22:44:50.528903Z",
+     "start_time": "2019-10-07T22:44:50.356924Z"
+    },
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "master_list = pd.merge(df_list1[['names_all','names_all_sp', 'first']], df_list2[['uni_comp_name', 'uni_comp_name_sp','first']], on = 'first')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1.5 Sequence matcher"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 85,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T22:46:42.785403Z",
+     "start_time": "2019-10-07T22:44:59.294203Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "103.43092703819275\n"
+     ]
+    }
+   ],
+   "source": [
+    "from difflib import SequenceMatcher\n",
+    "\n",
+    "s1 = time.time()\n",
+    "def match_names(a, b):\n",
+    "    return SequenceMatcher(None, a, b).quick_ratio()\n",
+    "\n",
+    "master_list['score_SM'] = master_list.apply(lambda row: match_names(row.uni_comp_name_sp, row.names_all_sp), axis=1)\n",
+    "\n",
+    "s2 = time.time()\n",
+    "\n",
+    "print(s2-s1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1.6 Fuzzy Wuzzy matching"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 88,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T22:52:47.371634Z",
+     "start_time": "2019-10-07T22:47:47.597723Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "from fuzzywuzzy import fuzz\n",
+    "\n",
+    "master_list['score_FW'] = master_list.apply(lambda row: fuzz.token_set_ratio(row['names_all'], row['uni_comp_name']), axis=1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1.7 Merging to get original columns"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### 1.7.1 Sequence matching results"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 86,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-07T22:46:43.801311Z",
+     "start_time": "2019-10-07T22:46:42.788718Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "res_SM_1 = master_list.groupby(['uni_comp_name_sp'], sort=True)['score_SM'].max()\n",
+    "res_SM = pd.merge(res_SM_1, master_list[['score_SM', 'uni_comp_name_sp', 'names_all_sp']],  how='left', on=['score_SM', 'uni_comp_name_sp'],)\n",
+    "res_SM_final_1 = pd.merge(res_SM, df_list2,  how='left', on=['uni_comp_name_sp'])\n",
+    "res_SM_final = pd.merge(res_SM_final_1, df_list1,  how='left', on=['names_all_sp'])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### 1.7.2 Fuzzy Wuzzy results"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 92,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T00:50:12.901710Z",
+     "start_time": "2019-10-08T00:50:11.957329Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "res_FW_1 = master_list.groupby(['uni_comp_name'], sort=True)['score_FW'].max()\n",
+    "res_FW = pd.merge(res_FW_1, master_list[['score_FW', 'uni_comp_name', 'names_all']],  how='left', on=['score_FW', 'uni_comp_name'],)\n",
+    "res_FW_final_1 = pd.merge(res_FW, df_list2,  how='left', on=['uni_comp_name'])\n",
+    "res_FW_final = pd.merge(res_FW_final_1, df_list1,  how='left', on=['names_all'])\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### 1.7.3 Write output"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 91,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-10-08T00:46:31.160246Z",
+     "start_time": "2019-10-08T00:46:30.727974Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "res_SM_final[['assignee', 'conm', 'score_SM']].to_csv(\"SequenceMatchingResults.csv\")\n",
+    "res_FW_final[['assignee', 'conm', 'score_FW']].to_csv(\"FuzzyWuzzyResults.csv\")\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.3"
+  },
+  "toc": {
+   "base_numbering": 1,
+   "nav_menu": {},
+   "number_sections": true,
+   "sideBar": true,
+   "skip_h1_title": false,
+   "title_cell": "Table of Contents",
+   "title_sidebar": "Contents",
+   "toc_cell": false,
+   "toc_position": {},
+   "toc_section_display": true,
+   "toc_window_display": true
+  },
+  "widgets": {
+   "application/vnd.jupyter.widget-state+json": {
+    "state": {},
+    "version_major": 2,
+    "version_minor": 0
+   }
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
